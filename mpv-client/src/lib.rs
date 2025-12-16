@@ -12,11 +12,14 @@ pub use node::Node;
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::fmt;
+use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::ptr::slice_from_raw_parts_mut;
 
 pub use ffi::mpv_handle;
 use ffi::*;
+
+use crate::node::from_mpv_node;
 
 /// Representation of a borrowed client context used by the client API.
 /// Every client has its own private handle.
@@ -263,6 +266,27 @@ impl Handle {
         raw_args.push(std::ptr::null()); // Adding null at the end
         unsafe { result!(mpv_command(self.as_mut_ptr(), raw_args.as_mut_ptr())) }
     }
+    
+    pub fn command_ret<I, S>(&mut self, args: I) -> Result<Node>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let args: Vec<CString> = args
+            .into_iter()
+            .map(|s| CString::new(s.as_ref()).unwrap())
+            .collect();
+        let mut raw_args: Vec<*const c_char> = args.iter().map(|s| s.as_ptr()).collect();
+        raw_args.push(std::ptr::null()); // Adding null at the end
+
+        let mut res = MaybeUninit::<mpv_node>::zeroed();
+        let ret =
+            unsafe { mpv_command_ret(self.as_mut_ptr(), raw_args.as_mut_ptr(), res.as_mut_ptr()) };
+
+        result!(ret)?;
+        unsafe { return Ok(from_mpv_node(res.assume_init_mut())) }
+    }
+
 
     /// Same as `Handle::command`, but run the command asynchronously.
     ///
