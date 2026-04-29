@@ -2,63 +2,37 @@ use std::env;
 use std::path::PathBuf;
 
 #[cfg(not(feature = "use-bindgen"))]
-#[cfg(target_os = "linux")]
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let crate_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    std::fs::copy(
-        crate_path.join("pregenerated_bindings.rs"),
-        out_path.join("bindings.rs"),
-    )
-    .expect("Couldn't find pregenerated bindings!");
+
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+
+    let src = if target_os == "windows" {
+        crate_path.join("pregenerated_bindings_windows.rs")
+    } else {
+        crate_path.join("pregenerated_bindings.rs")
+    };
+
+    std::fs::copy(src, out_path.join("bindings.rs")).expect("Couldn't find pregenerated bindings!");
 }
 
 #[cfg(feature = "use-bindgen")]
-#[cfg(target_os = "linux")]
 fn main() {
-    let bindings = bindgen::Builder::default()
-        .header("wrapper.h")
-        .generate()
-        .expect("Unable to generate bindings");
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+
+    let mut builder = bindgen::Builder::default().header("include/client.h");
+
+    if target_os == "windows" {
+        builder = builder
+            .clang_arg("-DMPV_CPLUGIN_DYNAMIC_SYM")
+            .blocklist_function("mpv_.*");
+    }
+
+    let bindings = builder.generate().expect("Unable to generate bindings");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
-
-    println!("cargo:rustc-link-lib=mpv");
-}
-
-#[cfg(not(feature = "use-bindgen"))]
-#[cfg(target_os = "windows")]
-fn main() {
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let crate_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    std::fs::copy(
-        crate_path.join("pregenerated_bindings.rs"),
-        out_path.join("bindings.rs"),
-    )
-    .expect("Couldn't find pregenerated bindings!");
-
-    println!("cargo:rustc-link-search=native={}", crate_path.display());
-    println!("cargo:rustc-link-lib=mpv");
-}
-
-#[cfg(feature = "use-bindgen")]
-#[cfg(target_os = "windows")]
-fn main() {
-    let crate_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-
-    let bindings = bindgen::Builder::default()
-        .header("include/client.h")
-        .generate()
-        .expect("Unable to generate bindings");
-
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
-
-    println!("cargo:rustc-link-search=native={}", crate_path.display());
-    println!("cargo:rustc-link-lib=mpv");
 }
