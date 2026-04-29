@@ -266,27 +266,22 @@ impl Handle {
         raw_args.push(std::ptr::null()); // Adding null at the end
         unsafe { result!(mpv_command(self.as_mut_ptr(), raw_args.as_mut_ptr())) }
     }
-    
+
     pub fn command_ret<I, S>(&mut self, args: I) -> Result<Node>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let args: Vec<CString> = args
-            .into_iter()
-            .map(|s| CString::new(s.as_ref()).unwrap())
-            .collect();
+        let args: Vec<CString> = args.into_iter().map(|s| CString::new(s.as_ref()).unwrap()).collect();
         let mut raw_args: Vec<*const c_char> = args.iter().map(|s| s.as_ptr()).collect();
         raw_args.push(std::ptr::null()); // Adding null at the end
 
         let mut res = MaybeUninit::<mpv_node>::zeroed();
-        let ret =
-            unsafe { mpv_command_ret(self.as_mut_ptr(), raw_args.as_mut_ptr(), res.as_mut_ptr()) };
+        let ret = unsafe { mpv_command_ret(self.as_mut_ptr(), raw_args.as_mut_ptr(), res.as_mut_ptr()) };
 
         result!(ret)?;
         unsafe { return Ok(from_mpv_node(res.assume_init_mut())) }
     }
-
 
     /// Same as `Handle::command`, but run the command asynchronously.
     ///

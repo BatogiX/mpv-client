@@ -8,3 +8,9 @@ license = "GPL-3.0"
 repository = "https://github.com/TheCactusVert/mpv-client"
 keywords = ["mpv", "libmpv"]
 build = "build.rs"
+
+[features]
+use-bindgen = ["bindgen"]
+
+[build-dependencies]
+bindgen = { version = "0.72.1", optional = true }
