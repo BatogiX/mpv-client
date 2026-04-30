@@ -26,6 +26,8 @@ fn main() {
     if target_os == "windows" {
         builder = builder
             .clang_arg("-DMPV_CPLUGIN_DYNAMIC_SYM")
+            .clang_arg("-target")
+            .clang_arg("x86_64-unknown-linux-gnu")
             .blocklist_function("mpv_.*");
     }
 

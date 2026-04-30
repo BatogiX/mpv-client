@@ -280,7 +280,7 @@ impl Handle {
         let ret = unsafe { mpv_command_ret(self.as_mut_ptr(), raw_args.as_mut_ptr(), res.as_mut_ptr()) };
 
         result!(ret)?;
-        unsafe { return Ok(from_mpv_node(res.assume_init_mut())) }
+        unsafe { Ok(from_mpv_node(res.assume_init_mut())) }
     }
 
     /// Same as `Handle::command`, but run the command asynchronously.
@@ -549,9 +549,7 @@ impl ClientMessage {
     pub fn args<'a>(&self) -> Vec<&'a str> {
         unsafe {
             let args = std::slice::from_raw_parts((*self.0).args, (*self.0).num_args as usize);
-            args.into_iter()
-                .map(|arg| CStr::from_ptr(*arg).to_str().unwrap())
-                .collect()
+            args.iter().map(|arg| CStr::from_ptr(*arg).to_str().unwrap()).collect()
         }
     }
 }

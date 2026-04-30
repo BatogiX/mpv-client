@@ -8,8 +8,9 @@ use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::slice;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Node {
+    #[default]
     None,
     String(String),
     Int(i64),
@@ -18,12 +19,6 @@ pub enum Node {
     ByteArray(Vec<u8>),
     Array(Vec<Node>),
     Map(HashMap<String, Node>),
-}
-
-impl Default for Node {
-    fn default() -> Self {
-        Node::None
-    }
 }
 
 pub fn from_mpv_node(node: &mut mpv_node) -> Node {
@@ -122,7 +117,7 @@ pub fn to_mpv_node(node: &Node) -> *mut mpv_node {
             mpv_node.format = mpv_format_MPV_FORMAT_BYTE_ARRAY;
             let ba = Box::new(mpv_byte_array {
                 size: vec.len(),
-                data: unsafe { libc::malloc(vec.len()) as *mut std::ffi::c_void },
+                data: unsafe { libc::malloc(vec.len()) },
             });
             if ba.data.is_null() {
                 panic!("Failed to allocate memory for byte array");
