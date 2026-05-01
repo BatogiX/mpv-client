@@ -131,6 +131,10 @@ name = "mpv-client-sys"
 version = "1.0.1"
 dependencies = [
  "bindgen",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

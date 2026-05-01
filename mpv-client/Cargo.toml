@@ -8,14 +8,13 @@ license = "GPL-3.0"
 repository = "https://github.com/TheCactusVert/mpv-client"
 keywords = ["mpv", "libmpv"]
 
+[features]
+default = []
+bindgen = ["ffi/bindgen"]
+
 [lib]
 name = "mpv_client"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 ffi = { package = "mpv-client-sys", version = "1.0.1", path = "../mpv-client-sys" }
 libc = "0.2.186"
-
-[features]
-use-bindgen = ["ffi/use-bindgen"]

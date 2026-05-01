@@ -1,32 +1,32 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let crate_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let is_windows_target = env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows";
 
-    #[cfg(feature = "use-bindgen")]
+    #[cfg(feature = "bindgen")]
     {
         let mut builder = bindgen::Builder::default().header("include/client.h");
 
-        if target_os == "windows" {
-            builder = builder
-                .clang_arg("-DMPV_CPLUGIN_DYNAMIC_SYM")
-                .clang_arg("-target")
-                .clang_arg("x86_64-unknown-linux-gnu")
-                .blocklist_function("mpv_.*");
+        if is_windows_target {
+            builder = builder.clang_arg("-target").clang_arg("x86_64-unknown-linux-gnu")
         }
 
         let bindings = builder.generate().expect("Unable to generate bindings");
-        bindings
-            .write_to_file(out_path.join("bindings.rs"))
-            .expect("Couldn't write bindings!");
+        let out_file = out_path.join("bindings.rs");
+        bindings.write_to_file(&out_file).expect("Couldn't write bindings!");
+
+        if is_windows_target {
+            rewrite_dynamic_sym_bindings(&out_file);
+        }
     }
 
-    #[cfg(not(feature = "use-bindgen"))]
+    #[cfg(not(feature = "bindgen"))]
     {
-        let src = if target_os == "windows" {
+        let crate_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+
+        let src = if is_windows_target {
             crate_path.join("pregenerated_bindings_windows.rs")
         } else {
             crate_path.join("pregenerated_bindings.rs")
@@ -34,4 +34,104 @@ fn main() {
 
         std::fs::copy(src, out_path.join("bindings.rs")).expect("Couldn't find pregenerated bindings!");
     }
+}
+
+#[cfg(feature = "bindgen")]
+fn rewrite_dynamic_sym_bindings(path: &Path) {
+    use std::fs;
+
+    use proc_macro2::TokenStream;
+    use quote::quote;
+    use syn::{ForeignItem, Item};
+
+    let src = fs::read_to_string(path).expect("read bindings");
+    let ast = syn::parse_file(&src).expect("parse bindings");
+
+    let mut out_items: Vec<TokenStream> = Vec::new();
+    let mut wrappers: Vec<TokenStream> = Vec::new();
+
+    for item in &ast.items {
+        let Item::ForeignMod(fm) = item else {
+            out_items.push(quote! { #item });
+            continue;
+        };
+
+        let is_c = fm.abi.name.as_ref().is_some_and(|s| s.value() == "C");
+        if !is_c {
+            out_items.push(quote! { #item });
+            continue;
+        }
+
+        let mut leftover: Vec<&ForeignItem> = Vec::new();
+
+        for fi in &fm.items {
+            let ForeignItem::Fn(f) = fi else {
+                leftover.push(fi);
+                continue;
+            };
+
+            if f.sig.variadic.is_some() {
+                leftover.push(fi);
+                continue;
+            }
+
+            let fn_ident = &f.sig.ident;
+            let pfn_ident = syn::Ident::new(&format!("pfn_{fn_ident}"), fn_ident.span());
+            let ret = &f.sig.output;
+            let attrs = &f.attrs;
+            let vis = &f.vis;
+
+            let mut ptr_args = Vec::new();
+            let mut wrapper_params = Vec::new();
+            let mut call_args = Vec::new();
+
+            for (i, arg) in f.sig.inputs.iter().enumerate() {
+                if let syn::FnArg::Typed(pat_type) = arg {
+                    let ty = &pat_type.ty;
+
+                    let arg_name = if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                        pat_ident.ident.clone()
+                    } else {
+                        syn::Ident::new(&format!("a{i}"), proc_macro2::Span::call_site())
+                    };
+
+                    ptr_args.push(quote! { #ty });
+                    wrapper_params.push(quote! { #arg_name: #ty });
+                    call_args.push(quote! { #arg_name });
+                }
+            }
+
+            out_items.push(quote! {
+                #[unsafe(no_mangle)]
+                static mut #pfn_ident: Option<unsafe extern "C" fn(#(#ptr_args),*) #ret> = None;
+            });
+
+            let expect_msg = format!("{fn_ident} not initialized by mpv");
+            wrappers.push(quote! {
+                #(#attrs)*
+                #[inline]
+                #vis unsafe fn #fn_ident(#(#wrapper_params),*) #ret {
+                    #pfn_ident.expect(#expect_msg)(#(#call_args),*)
+                }
+            });
+        }
+
+        if !leftover.is_empty() {
+            let attrs = &fm.attrs;
+            let unsafety = &fm.unsafety;
+            let abi = &fm.abi;
+            out_items.push(quote! {
+                #(#attrs)*
+                #unsafety #abi {
+                    #(#leftover)*
+                }
+            });
+        }
+    }
+
+    out_items.extend(wrappers);
+
+    let combined: TokenStream = out_items.into_iter().collect();
+    let formatted = prettyplease::unparse(&syn::parse2::<syn::File>(combined).expect("reparse output"));
+    fs::write(path, formatted).expect("write bindings");
 }
