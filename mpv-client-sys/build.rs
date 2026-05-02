@@ -1,42 +1,43 @@
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+#[cfg(feature = "bindgen")]
+#[cfg(windows)]
+use std::path::Path;
 
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let is_windows_target = env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows";
 
     #[cfg(feature = "bindgen")]
     {
-        let mut builder = bindgen::Builder::default().header("include/client.h");
+        let builder = bindgen::Builder::default().header("include/client.h");
 
-        if is_windows_target {
-            builder = builder.clang_arg("-target").clang_arg("x86_64-unknown-linux-gnu")
-        }
+        #[cfg(windows)]
+        let builder = builder.clang_arg("-target").clang_arg("x86_64-unknown-linux-gnu");
 
         let bindings = builder.generate().expect("Unable to generate bindings");
         let out_file = out_path.join("bindings.rs");
         bindings.write_to_file(&out_file).expect("Couldn't write bindings!");
 
-        if is_windows_target {
-            rewrite_dynamic_sym_bindings(&out_file);
-        }
+        #[cfg(windows)]
+        rewrite_dynamic_sym_bindings(&out_file);
     }
 
     #[cfg(not(feature = "bindgen"))]
     {
         let crate_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
 
-        let src = if is_windows_target {
-            crate_path.join("pregenerated_bindings_windows.rs")
-        } else {
-            crate_path.join("pregenerated_bindings.rs")
-        };
+        #[cfg(unix)]
+        let src = crate_path.join("pregenerated_bindings.rs");
+        #[cfg(windows)]
+        let src = crate_path.join("pregenerated_bindings_windows.rs");
 
         std::fs::copy(src, out_path.join("bindings.rs")).expect("Couldn't find pregenerated bindings!");
     }
 }
 
 #[cfg(feature = "bindgen")]
+#[cfg(windows)]
 fn rewrite_dynamic_sym_bindings(path: &Path) {
     use std::fs;
 
