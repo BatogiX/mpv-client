@@ -10,7 +10,7 @@ pub use error::{Error, Result};
 pub use format::Format;
 pub use node::Node;
 
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
@@ -171,11 +171,18 @@ impl Handle {
         unsafe { &mut *(slice_from_raw_parts_mut(ptr, 1) as *mut Self) }
     }
 
+    /// # Safety
+    ///
+    /// `Handle` must have been created from a valid, non-null `mpv_handle` pointer.
     #[inline]
     pub unsafe fn as_ptr(&self) -> *const mpv_handle {
         self.inner.as_ptr()
     }
 
+    /// # Safety
+    ///
+    /// `Handle` must have been created from a valid, non-null `mpv_handle` pointer,
+    /// and there must be no other active mutable references to the underlying handle.
     #[inline]
     pub unsafe fn as_mut_ptr(&mut self) -> *mut mpv_handle {
         self.inner.as_mut_ptr()
@@ -396,34 +403,36 @@ unsafe impl Send for Client {}
 
 impl Event {
     unsafe fn from_ptr(event: *const mpv_event) -> Event {
-        match (*event).event_id {
-            mpv_event_id_MPV_EVENT_SHUTDOWN => Event::Shutdown,
-            mpv_event_id_MPV_EVENT_LOG_MESSAGE => Event::LogMessage(LogMessage::from_ptr((*event).data)),
-            mpv_event_id_MPV_EVENT_GET_PROPERTY_REPLY => Event::GetPropertyReply(
-                result!((*event).error),
-                (*event).reply_userdata,
-                Property::from_ptr((*event).data),
-            ),
-            mpv_event_id_MPV_EVENT_SET_PROPERTY_REPLY => {
-                Event::SetPropertyReply(result!((*event).error), (*event).reply_userdata)
+        unsafe {
+            match (*event).event_id {
+                mpv_event_id_MPV_EVENT_SHUTDOWN => Event::Shutdown,
+                mpv_event_id_MPV_EVENT_LOG_MESSAGE => Event::LogMessage(LogMessage::from_ptr((*event).data)),
+                mpv_event_id_MPV_EVENT_GET_PROPERTY_REPLY => Event::GetPropertyReply(
+                    result!((*event).error),
+                    (*event).reply_userdata,
+                    Property::from_ptr((*event).data),
+                ),
+                mpv_event_id_MPV_EVENT_SET_PROPERTY_REPLY => {
+                    Event::SetPropertyReply(result!((*event).error), (*event).reply_userdata)
+                }
+                mpv_event_id_MPV_EVENT_COMMAND_REPLY => {
+                    Event::CommandReply(result!((*event).error), (*event).reply_userdata)
+                }
+                mpv_event_id_MPV_EVENT_START_FILE => Event::StartFile(StartFile::from_ptr((*event).data)),
+                mpv_event_id_MPV_EVENT_END_FILE => Event::EndFile(EndFile::from_ptr((*event).data)),
+                mpv_event_id_MPV_EVENT_FILE_LOADED => Event::FileLoaded,
+                mpv_event_id_MPV_EVENT_CLIENT_MESSAGE => Event::ClientMessage(ClientMessage::from_ptr((*event).data)),
+                mpv_event_id_MPV_EVENT_VIDEO_RECONFIG => Event::VideoReconfig,
+                mpv_event_id_MPV_EVENT_AUDIO_RECONFIG => Event::AudioReconfig,
+                mpv_event_id_MPV_EVENT_SEEK => Event::Seek,
+                mpv_event_id_MPV_EVENT_PLAYBACK_RESTART => Event::PlaybackRestart,
+                mpv_event_id_MPV_EVENT_PROPERTY_CHANGE => {
+                    Event::PropertyChange((*event).reply_userdata, Property::from_ptr((*event).data))
+                }
+                mpv_event_id_MPV_EVENT_QUEUE_OVERFLOW => Event::QueueOverflow,
+                mpv_event_id_MPV_EVENT_HOOK => Event::Hook((*event).reply_userdata, Hook::from_ptr((*event).data)),
+                _ => Event::None,
             }
-            mpv_event_id_MPV_EVENT_COMMAND_REPLY => {
-                Event::CommandReply(result!((*event).error), (*event).reply_userdata)
-            }
-            mpv_event_id_MPV_EVENT_START_FILE => Event::StartFile(StartFile::from_ptr((*event).data)),
-            mpv_event_id_MPV_EVENT_END_FILE => Event::EndFile(EndFile::from_ptr((*event).data)),
-            mpv_event_id_MPV_EVENT_FILE_LOADED => Event::FileLoaded,
-            mpv_event_id_MPV_EVENT_CLIENT_MESSAGE => Event::ClientMessage(ClientMessage::from_ptr((*event).data)),
-            mpv_event_id_MPV_EVENT_VIDEO_RECONFIG => Event::VideoReconfig,
-            mpv_event_id_MPV_EVENT_AUDIO_RECONFIG => Event::AudioReconfig,
-            mpv_event_id_MPV_EVENT_SEEK => Event::Seek,
-            mpv_event_id_MPV_EVENT_PLAYBACK_RESTART => Event::PlaybackRestart,
-            mpv_event_id_MPV_EVENT_PROPERTY_CHANGE => {
-                Event::PropertyChange((*event).reply_userdata, Property::from_ptr((*event).data))
-            }
-            mpv_event_id_MPV_EVENT_QUEUE_OVERFLOW => Event::QueueOverflow,
-            mpv_event_id_MPV_EVENT_HOOK => Event::Hook((*event).reply_userdata, Hook::from_ptr((*event).data)),
-            _ => Event::None,
         }
     }
 }

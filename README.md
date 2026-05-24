@@ -2,6 +2,13 @@
 
 Bindings for libmpv client API that allow you to create plugins for MPV in Rust.
 
+> ⚠️ **About this Fork:**
+> This is a maintained fork of the original [TheCactusVert/mpv-client](https://github.com/TheCactusVert/mpv-client). 
+> 
+> **Key improvements in this fork:**
+> * **Windows Support:** Added out-of-the-box support for Windows compilation (via MPV_CPLUGIN_DYNAMIC_SYM [linkage-to-libmpv](https://mpv.io/manual/stable/#linkage-to-libmpv)).
+> * **No LLVM/Clang required:** Uses **pregenerated bindings** by default, meaning you don't need `bindgen` or a local LLVM installation during `cargo build`.
+
 ## Example
 
 Here is an example for your `Cargo.toml`:
@@ -10,14 +17,14 @@ Here is an example for your `Cargo.toml`:
 [package]
 name = "mpv-plugin"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "mpv_plugin"
 crate-type = ["cdylib"]
 
 [dependencies]
-mpv-client = "1.1.0"
+mpv-client-cross = "1.2.0"
 ```
 
 And then the code `src/lib.rs`:

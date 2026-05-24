@@ -112,7 +112,7 @@ fn rewrite_dynamic_sym_bindings(path: &Path) {
                 #(#attrs)*
                 #[inline]
                 #vis unsafe fn #fn_ident(#(#wrapper_params),*) #ret {
-                    #pfn_ident.expect(#expect_msg)(#(#call_args),*)
+                    unsafe { #pfn_ident.expect(#expect_msg)(#(#call_args),*) }
                 }
             });
         }
