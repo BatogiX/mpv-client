@@ -1,12 +1,13 @@
 [package]
 name = "mpv-client-cross-sys"
-version = "1.1.0"
+version = "1.1.1"
 edition.workspace = true
 authors.workspace = true
 description = "Raw bindings for libmpv client API"
 license.workspace = true
 repository.workspace = true
 keywords.workspace = true
+readme.workspace = true
 build = "build.rs"
 
 [features]

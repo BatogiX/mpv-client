@@ -6,7 +6,7 @@ resolver = "3"
 readme = "README.md"
 authors = ["Kevin Gavrois <kevin@gavrois.fr>", "BatogiX"]
 edition = "2024"
-repository = "https://github.com/BatogiX/mpv-client"
+repository = "https://github.com/BatogiX/mpv-client-cross"
 license = "GPL-3.0"
 keywords = ["mpv", "libmpv"]
 
